@@ -139,6 +139,6 @@ PYTHONPATH=src python -m agentic_search_rl sft-preflight --config configs/exampl
 
 ## 致谢与许可证
 
-本项目借鉴 [SmartSearch](https://github.com/RUC-NLPIR/SmartSearch) 的部分PRM思路，并适配 Research-Agent---1st-place-in-Alibaba-Cloud-Data-AI-Competition(https://github.com/yiming-qing/Research-Agent---1st-place-in-Alibaba-Cloud-Data-AI-Competition) 的交互式 Agent 语义，结合其guard机制改进了PRM机制。项目自身的 multi-query canonicalization、role-aware 训练桥接和 counterfactual 分支执行，与上游工作在架构文档中明确区分。
+本项目借鉴 [SmartSearch](https://github.com/RUC-NLPIR/SmartSearch) 的部分PRM思路，并适配 【Research-Agent---1st-place-in-Alibaba-Cloud-Data-AI-Competition】(https://github.com/yiming-qing/Research-Agent---1st-place-in-Alibaba-Cloud-Data-AI-Competition) 的交互式 Agent 语义，结合其guard机制改进了PRM机制。项目自身的 multi-query canonicalization、role-aware 训练桥接和 counterfactual 分支执行，与上游工作在架构文档中明确区分。
 
 HF/PEFT、LLaMA-Factory、veRL 与 FlashRAG 为项目提供了训练和检索生态支持。第三方 attribution 与保留的许可证文本见[第三方声明](THIRD_PARTY_NOTICES.md)。仓库整体许可证需要由项目所有者在正式发布前确定；上游许可证义务始终有效。
