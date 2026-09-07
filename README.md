@@ -6,11 +6,12 @@
 
 ## 设计原则
 
-- **以实际执行为依据**：真正执行的 Search query 与 observation 是 canonical 数据的权威来源。
-- **支持多查询 Search**：一条动作可以包含多个 query，并保留每个 query 与对应检索结果的映射。
-- **按角色构造训练目标**：监督 assistant 生成的内容；环境 observation 只作为上下文，不作为预测目标。
-- **因果一致的查询改写**：修改 query 后重新检索并重新 rollout，不复用分支点之后的旧轨迹后缀。
-- **统一运行时，多阶段策略**：Base 与各阶段单一 adapter 均通过同一个 PolicyBackend 接入 Champion。
+- **查询级过程信用分配**：不只依赖最终答案奖励，而是将长链路 Search 轨迹拆解到 Query 级别，对中间搜索决策进行独立评价，缓解多轮 Agent 中最终奖励稀疏、错误步骤难以归因的问题。
+- **过程奖励驱动搜索质量优化**：通过 PRM 分别评估 Query 的搜索意图与真实检索结果有效性，形成细粒度 Process Reward，使训练目标从“最终答对”进一步扩展到“中间搜索步骤是否有效”。
+- **SFT 学习能力，DPO 优化 Query，GRPO 优化长期策略**：SFT 负责建立基本的多轮 Search 与工具调用能力；DPO 利用 Query-level preference pairs 提升查询准确性与相关性；GRPO 将过程奖励引入在线 rollout，进一步优化跨多轮的搜索、证据利用与停止策略。
+- **提升有效搜索而非单纯增加搜索次数**：训练目标不仅关注最终回答质量，同时降低重复 Query、无收益 Search 和重复 Observation，使模型在更少的 Search actions 下获得更高的有效检索率与 Search Efficiency。
+- **因果一致的 Query Refinement**：对于低质量 Query，在分支点进行改写后必须重新执行真实检索并重新 rollout，旧 Query 对应的 observation 与后续轨迹不再复用，保证偏好数据和过程奖励真实反映 Query 修改带来的因果效果。
+- **真实交互轨迹作为训练依据**：所有过程监督、偏好构造和强化学习奖励均建立在 Agent 实际执行的 Search query 与返回 evidence 上，避免仅根据模型文本表面形式判断搜索行为，使训练信号与真实环境交互保持一致。
 
 ## 总体架构
 
