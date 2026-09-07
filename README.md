@@ -100,9 +100,9 @@ configs/                    # 模型身份、实验配置与可移植示例
 scripts/
   data/                     # Teacher 生成、raw990 冻结与 canonical 重建入口
   process/                  # Process Judge V3 审计与评分入口
-  sft/                      # SFT 数据构造与 preflight
-  dpo/                      # DPO 数据构造与 preflight
-  grpo/                     # GRPO correctness preflight
+  sft/                      # SFT 数据构造与训练代码
+  dpo/                      # DPO 数据构造与训练代码
+  grpo/                     # GRPO 训练代码
 tests/                      # 离线回归测试
 docs/                       # 主线架构与入口文档
 ```
@@ -119,13 +119,13 @@ PYTHONPATH=src python -m agentic_search_rl entrypoints
 PYTHONPATH=src python -m agentic_search_rl score-answer --prediction "Paris" --gold "Paris"
 ```
 
-执行模型与数据 preflight 时，需要显式提供本地资产路径：
+正式执行模型训练时，需要显式提供本地资产路径：
 
 ```bash
 export ASRL_MODEL_PATH=/path/to/local/base
 export ASRL_TOKENIZER_PATH=/path/to/exact/tokenizer
 export ASRL_SFT_DATASET=/path/to/canonical_sft.jsonl
-PYTHONPATH=src python -m agentic_search_rl sft-preflight --config configs/examples/sft.local.json
+PYTHONPATH=src python -m agentic_search_rl sft --config configs/examples/sft.local.json
 ```
 
 该命令只构造 dataset、model 和 optimizer state，不进行训练。示例中的资源参数仅用于展示配置方法，不代表任何硬件承载保证。运行模型前请先阅读[配置说明](configs/README.md)与[主线入口](docs/ENTRYPOINTS.md)。
