@@ -53,7 +53,7 @@ Canonical 轨迹 ──→ HF / PEFT SFT
 
 ## Agent 框架与运行环境
 
-本项目的 Agent 运行时建立在 [Research-Agent---1st-place-in-Alibaba-Cloud-Data-AI-Competition](https://github.com/yiming-qing/Research-Agent---1st-place-in-Alibaba-Cloud-Data-AI-Competition) 的框架思路之上。上游框架提供 FastAPI 入口、ReAct 循环、工具调用解析、超时与 token 保护；本项目在此基础上冻结 Visit，仅保留 Search 主线，并将 Search 改造成适配训练和评测的多查询 Champion 运行时。
+本项目的 Agent 运行时建立在 [Research-Agent---1st-place-in-Alibaba-Cloud-Data-AI-Competition](https://github.com/yiming-qing/Research-Agent---1st-place-in-Alibaba-Cloud-Data-AI-Competition) （本项目称为champion agent）的框架思路之上。上游框架提供 FastAPI 入口、ReAct 循环、工具调用解析、超时与 token 保护；本项目在此基础上冻结 Visit，仅保留 Search 主线，并将 Search 改造成适配训练和评测的多查询 Champion 运行时。在PRM阶段，本项目将 Champion 中 Guard 的机制融入了奖励函数，作为合法性检验。
 
 典型调用链为：
 
