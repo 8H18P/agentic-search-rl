@@ -1,0 +1,19 @@
+{
+  "model_path": "${ASRL_MODEL_PATH}",
+  "tokenizer_path": "${ASRL_TOKENIZER_PATH}",
+  "train_dataset_path": "${ASRL_SFT_DATASET}",
+  "mode": "lora",
+  "max_seq_length": 8192,
+  "per_device_train_batch_size": 1,
+  "gradient_accumulation_steps": 4,
+  "learning_rate": 0.00002,
+  "num_train_epochs": 1,
+  "max_steps": -1,
+  "gradient_checkpointing": true,
+  "dtype": "bfloat16",
+  "lora_r": 32,
+  "lora_alpha": 64,
+  "lora_dropout": 0.05,
+  "report_to": [],
+  "seed": 42
+}

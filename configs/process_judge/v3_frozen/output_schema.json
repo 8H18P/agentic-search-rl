@@ -1,0 +1,21 @@
+{
+  "intent": {
+    "wire_format": "<intent>0|1</intent><intent_failure_type>none|irrelevant|wrong_entity|malformed|other</intent_failure_type><explanation>...</explanation>",
+    "required_fields": ["intent", "intent_failure_type", "explanation"]
+  },
+  "retrieval": {
+    "wire_format": "<retrieval>0|1</retrieval><retrieval_failure_type>none|retrieval_miss|retrieval_partial|result_entity_mismatch|other</retrieval_failure_type><explanation>...</explanation>",
+    "required_fields": ["retrieval", "retrieval_failure_type", "explanation"]
+  },
+  "composition": {
+    "model_generated_process_score": false,
+    "process_score": "intent AND retrieval"
+  },
+  "efficiency": {
+    "source": "independent sidecar",
+    "allowed_values": ["none", "possible_redundant_verification", "likely_already_resolved"],
+    "affects_intent": false,
+    "affects_retrieval": false,
+    "affects_process_score": false
+  }
+}

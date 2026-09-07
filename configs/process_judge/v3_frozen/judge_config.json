@@ -1,0 +1,16 @@
+{
+  "freeze_name": "judge-v3-frozen-pre-validation",
+  "model": "qwen3.5-flash",
+  "temperature": 0,
+  "enable_thinking": false,
+  "max_tokens": 384,
+  "connect_timeout_seconds": 15,
+  "read_timeout_seconds": 180,
+  "max_attempts": 3,
+  "api_key_env": "DMX_API_KEY",
+  "intent_failure_types": ["none", "irrelevant", "wrong_entity", "malformed", "other"],
+  "retrieval_failure_types": ["none", "retrieval_miss", "retrieval_partial", "result_entity_mismatch", "other"],
+  "efficiency_notes": ["none", "possible_redundant_verification", "likely_already_resolved"],
+  "efficiency_affects_process_score": false,
+  "process_score_rule": "int(intent_score == 1 and retrieval_score == 1)"
+}

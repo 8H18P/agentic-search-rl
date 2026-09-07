@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-search-rl"
+version = "0.1.0.dev0"
+description = "Canonical multi-turn Search agent post-training interfaces"
+requires-python = ">=3.10"
+# Stage-specific ML runtimes are resolved separately; see docs/ENTRYPOINTS.md.
+dependencies = []
+
+[project.scripts]
+agentic-search-rl = "agentic_search_rl.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["agentic_search_rl*", "canonical_sft*", "champion_runtime*", "online_grpo*", "rl_agent*"]
+namespaces = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

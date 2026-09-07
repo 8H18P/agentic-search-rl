@@ -1,0 +1,46 @@
+# Source-aligned experiment specification, NOT a stock LF CLI config.
+# Bind paths/runtime separately. The canonical project bridge must bypass LF's
+# raw pairwise processor; never hand this to `llamafactory-cli train` directly.
+schema_version: 1
+stage: dpo
+backend: llamafactory
+execution_status: preflight_required
+runtime_identity: configs/runtime/llamafactory_identity.json
+model:
+  base_path: null
+  tokenizer_path: null
+  sft_adapter_path: null
+  local_files_only: true
+  model_class: Qwen3_5ForCausalLM
+  finetuning_type: lora
+  create_new_adapter: false
+  lora_config_source: initial_sft_adapter
+data:
+  canonical_dataset_path: null
+  selected_pair_ids: null
+  max_sequence_length: 10000
+  overflow_policy: error
+  loss_targets: continuation_assistant_body_only
+  tokenizer_template: exact_project_tokenizer
+objective:
+  pref_loss: sigmoid
+  pref_beta: 0.1
+  pref_ftx: 0.0
+  pref_bco_weight: 0.0
+  dpo_label_smoothing: 0.0
+  ld_alpha: null
+  reference: explicit_frozen_initial_sft
+training:
+  learning_rate: 7.0e-6
+  num_train_epochs: 3
+  effective_batch_size: 32
+  bf16: true
+  deepspeed_stage: 3
+  attention: flash_attention_2
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.1
+  # Launcher derives gradient accumulation from world size and microbatch;
+  # it must reject nonintegral effective-batch layouts.
+  per_device_batch_size: null
+  output_dir: null
+  report_to: []

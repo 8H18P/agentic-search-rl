@@ -1,0 +1,46 @@
+# Local environments and editor state
+.venv/
+.venv-*/
+.idea/
+.vscode/
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Credentials and local sessions
+.env
+.env.*
+**/.env
+**/.env.*
+wandb/
+
+# Models, retrieval corpora, checkpoints and caches
+models/
+retriever_data/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.index
+*.faiss
+checkpoints/
+.cache/
+cache/
+output/
+outputs/
+
+# Generated experiment assets (already tracked provenance stays tracked)
+/artifacts/
+/data/
+/logs/
+/reports/
+
+# Local workspaces and nested upstream source checkouts
+.codex*
+/src/champion_agent/
+/src/smartsearch/
