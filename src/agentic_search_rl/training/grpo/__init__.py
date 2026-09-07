@@ -1,1 +1,1 @@
-"""veRL-targeted trajectory/reward interfaces. No production GRPO trainer exported."""
+"""Champion trajectory/reward interfaces backed by the formal TRL GRPO runner."""

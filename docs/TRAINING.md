@@ -6,10 +6,23 @@
 
 ## DPO
 
-canonical chosen/rejected continuation 由 `src/canonical_sft/dpo.py` 表示，`src/canonical_sft/trl_dpo.py` 和 `llamafactory_dpo.py` 提供 TRL/现代 LLaMA-Factory bridge。`scripts/dpo/preflight.sh` 只做数据与 reference/policy 一致性检查；正式训练需在具备对应依赖的环境中显式启动。
+canonical chosen/rejected continuation 由 `src/canonical_sft/dpo.py` 表示。正式入口是：
 
-## GRPO / veRL
+```bash
+bash scripts/dpo/train.sh configs/examples/dpo.local.json
+```
 
-`src/online_grpo/` 负责 Champion 轨迹与过程奖励接口，`scripts/grpo_verl/preflight.sh` 是当前公开入口。veRL 依赖和多卡资源单独安装配置；本仓库不在导入或 `--help` 时启动训练。
+`src/canonical_sft/dpo_runner.py` 显式加载两个互不共享参数对象的 Base + SFT adapter：policy 可训练，reference 全冻结。入口执行 sigmoid DPO loss、`backward()`、梯度审计、`optimizer.step()`、checkpoint、optimizer state、clean reload，并输出 `grpo_handoff.json`。配置 `eval_dataset_path` 后会在独立偏好集上计算 loss 与 reward accuracy；未配置时相应字段标记为 training-pairs diagnostic。
 
-所有阶段都从 Base + 单阶段 adapter 恢复，不隐式叠加 SFT、DPO、GRPO adapter。训练配置、seed、数据 hash 和模型 revision 应写入运行 manifest。
+## GRPO
+
+`src/online_grpo/` 负责 Champion 轨迹、冻结 reference、过程奖励和实际参数更新。只读 preflight 与正式训练明确分开：
+
+```bash
+bash scripts/grpo/preflight.sh <grpo-config.json>
+bash scripts/grpo/train.sh <grpo-config.json>
+```
+
+正式入口在同一 policy version 下先完成整个 group rollout，再快照 old logprob，执行 GRPO `backward()`、梯度裁剪和 `optimizer.step()`；每次更新后都会用新 policy 重新进入 Champion Search 环境，并记录 reward、KL、policy loss、grad norm、参数 hash、checkpoint 与 clean reload。
+
+所有阶段都从 Base + 单阶段 adapter 恢复，不隐式叠加 SFT、DPO、GRPO adapter。训练配置、seed、数据 hash 和模型 revision 应写入运行 manifest。GRPO 跨进程续训需要同时设置 `training.resume_from_checkpoint` 并传入 `--resume`：入口先从原始 DPO adapter 构造冻结 reference，再把 checkpoint policy 恢复到 default adapter，并恢复 optimizer state；reference 不会随 checkpoint 漂移。

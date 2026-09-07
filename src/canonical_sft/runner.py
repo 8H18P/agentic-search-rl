@@ -112,8 +112,8 @@ def _init_wandb(config, raw_config, output_dir, parameter_state, total_steps):
         return None
     import wandb
 
-    identity_path = Path("configs/model/qwen35_4b_identity.json")
-    identity = json.loads(identity_path.read_text()) if identity_path.exists() else {}
+    identity_path = Path(raw_config.get("identity_path", ""))
+    identity = json.loads(identity_path.read_text()) if identity_path and identity_path.exists() else {}
     dataset_manifest_path = output_dir / "dataset_manifest.json"
     dataset_manifest = json.loads(dataset_manifest_path.read_text()) if dataset_manifest_path.exists() else {}
     public_config = dict(raw_config)
@@ -309,7 +309,7 @@ def run(config_path):
     model.save_pretrained(checkpoint, safe_serialization=True)
     tokenizer.save_pretrained(checkpoint)
     manifest = {
-        "engineering_smoke_only": True,
+        "run_kind": "bounded" if config.max_steps > 0 else "epoch",
         "config": raw_config,
         "config_path": str(Path(config_path).resolve()),
         "dataset_sha256": _sha256(config.train_dataset_path),

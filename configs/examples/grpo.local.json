@@ -1,0 +1,43 @@
+{
+  "output_dir": "${ASRL_GRPO_OUTPUT}",
+  "split_manifest": "${ASRL_SPLIT_MANIFEST}",
+  "question_pool": "${ASRL_GRPO_QUESTION_POOL}",
+  "exclusion_files": [
+    "${ASRL_POSTTRAIN_EXCLUSION_DATA}",
+    "${ASRL_JUDGE_EXCLUSION_DATA}"
+  ],
+  "identity_path": "${ASRL_MODEL_IDENTITY}",
+  "adapter_path": "${ASRL_DPO_CHECKPOINT}",
+  "retriever_url": "${ASRL_RETRIEVER_URL}",
+  "attention_backend": "sdpa",
+  "seed": 42,
+  "max_seq_length": 8192,
+  "max_rounds": 8,
+  "timeout_seconds": 900,
+  "process_weight": 0.25,
+  "generation": {
+    "do_sample": true,
+    "max_new_tokens": 1024,
+    "top_k": 0,
+    "top_p": 1.0,
+    "repetition_penalty": 1.0,
+    "enable_thinking": true
+  },
+  "trl": {
+    "num_generations": 2,
+    "per_device_train_batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "learning_rate": 5e-7,
+    "beta": 0.04,
+    "report_to": []
+  },
+  "training": {
+    "max_updates": 1,
+    "max_grad_norm": 1.0,
+    "resume_from_checkpoint": null
+  },
+  "judge": {
+    "api_key_env": "DMX_API_KEY",
+    "base_url": "${ASRL_JUDGE_BASE_URL}"
+  }
+}

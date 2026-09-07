@@ -1,1 +1,1 @@
-"""HF/PEFT SFT, LLaMA-Factory DPO bridge, and veRL-targeted GRPO interfaces."""
+"""HF/PEFT SFT, canonical DPO, and Champion-integrated TRL GRPO interfaces."""

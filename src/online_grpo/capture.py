@@ -6,7 +6,14 @@ import hashlib
 import json
 import re
 from collections import Counter
-from enum import StrEnum
+try:
+    from enum import StrEnum
+except ImportError:  # Python 3.10 compatibility promised by pyproject.toml
+    from enum import Enum
+
+    class StrEnum(str, Enum):
+        def __str__(self):
+            return self.value
 
 import torch
 
@@ -96,7 +103,7 @@ class RolloutCapture:
         settings.update(kwargs)
         # Pure temperature sampling keeps the replay likelihood well-defined.
         if settings.get("top_k", 0) != 0 or settings.get("top_p", 1.0) != 1.0 or settings.get("repetition_penalty", 1.0) != 1.0:
-            raise ValueError("preflight supports temperature sampling without extra logits processors")
+            raise ValueError("online capture supports temperature sampling without extra logits processors")
         self.pending = {
             "trajectory_id": self.trajectory_id, "group_id": self.group_id, "question_id": self.question_id,
             "generation_idx": len(self.records), "round_idx": self.round_idx, "seed": self.seed,

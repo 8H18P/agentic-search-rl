@@ -864,17 +864,6 @@ Canonical actions come from successful `tool_json_parse` plus `search_start` eve
 - Mean/P50/P95 tokens per unit: {mean(judge_input_lengths):.1f} / {percentile(judge_input_lengths, .5):.0f} / {percentile(judge_input_lengths, .95):.0f}
 - Estimated qwen3.5-flash cost with 50/100/200 output tokens per unit: ¥{cost_scenarios['50']['total_cost_rmb']:.2f} / ¥{cost_scenarios['100']['total_cost_rmb']:.2f} / ¥{cost_scenarios['200']['total_cost_rmb']:.2f}
 
-## State
-
-`SFT_CANDIDATE_CONSTRUCTED = true`
-
-`PRE_JUDGE_FILTER_COMPLETE = true`
-
-`PROCESS_JUDGE_STARTED = false`
-
-`FINAL_SFT_FROZEN = false`
-
-`SFT_TRAINING_STARTED = false`
 """
     (output_dir / "SFT_CANDIDATE_PREJUDGE_REPORT.md").write_text(report, encoding="utf-8")
 

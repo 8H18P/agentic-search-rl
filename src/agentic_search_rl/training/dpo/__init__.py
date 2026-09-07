@@ -1,1 +1,1 @@
-"""Official DPO integration surface: canonical LLaMA-Factory bridge, not a train command."""
+"""Canonical DPO data bridge and formal native training entrypoint."""

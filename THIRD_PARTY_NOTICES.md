@@ -12,13 +12,13 @@ Copyright (c) 2026 Yiming Han。已与本地上游 LICENSE 核对。
 [RUC-NLPIR/SmartSearch](https://github.com/RUC-NLPIR/SmartSearch)，已审计源码版本
 `5e9e7ec0d6af34f45fad145d4bff442529e7e6ff`。
 已保留 MIT 声明：[SmartSearch-MIT.txt](third_party/licenses/SmartSearch-MIT.txt)。
-Copyright (c) 2025 SmartSearch。不得将上游实验声称为本项目结果。
+Copyright (c) 2025 SmartSearch。不得将上游工作成果声称为本项目结果。
 
 ## 训练与检索依赖
 
-HF Transformers/PEFT、现代 LLaMA-Factory、veRL、TRL 和 FlashRAG 均为外部依赖。
+HF Transformers/PEFT、TRL 和 FlashRAG 均为外部依赖。
 各软件包保留自身许可条款。公开包发现规则不包含嵌套 checkout。
-根目录中的 SmartSearch MIT 声明不会取代其 vendored 依赖（例如 LLaMA-Factory）内部的许可声明。
+根目录中的 SmartSearch MIT 声明不会取代其上游依赖各自的许可声明。
 
 本次重构期间，在指定源码 checkout 中未找到 FlashRAG 许可证文本。
 在精确版本和许可条款核实之前，不得再分发 FlashRAG 源码或 vendor bundle。

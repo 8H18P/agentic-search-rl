@@ -2,7 +2,7 @@
 
 这是一个面向多轮信息检索的 Search Agent 后训练项目。项目借鉴并适配 **SmartSearch** 的查询级过程监督与偏好优化思路，在 **Champion 风格的交互式 Search 运行时**上组织 SFT → DPO → GRPO 流水线。
 
-项目关注的核心问题是：解决多轮 Search Agent 在长链路任务中最终奖励稀疏、错误搜索难以归因以及中间步骤信用分配困难的问题。通过引入查询级 Process Reward Model（PRM），对每一步 Query 的搜索意图与检索结果有效性进行过程监督，并将过程奖励用于后续偏好优化与强化学习，使模型不仅关注最终答案是否正确，还能够持续优化中间搜索决策，从而提升长链路任务中的 Query 准确性、有效检索率与整体 Search Efficiency。
+项目关注的核心问题是：解决多轮 Search Agent 在长链路任务中最终奖励稀疏、错误搜索难以归因以及中间步骤信用分配困难的问题。当前实现使用冻结的查询级 LLM Judge（不是独立训练的本地 PRM checkpoint）评估每一步 Query 的搜索意图与检索结果有效性，并将其作为 process reward 用于偏好优化与强化学习。
 
 ## 设计原则
 
@@ -31,11 +31,11 @@ Canonical 轨迹 ──→ HF / PEFT SFT
                          │
                   Canonical 偏好数据
                          ▼
-              LLaMA-Factory-compatible DPO
+               Canonical native DPO
                          │
                   Base + DPO adapter
                          ▼
-           veRL 在线强化学习 ↔ Champion Search 环境
+            TRL GRPO 训练 ↔ Champion Search 环境
                          │
                         GRPO
 ```
@@ -47,8 +47,8 @@ Canonical 轨迹 ──→ HF / PEFT SFT
 | SFT | 学习 canonical reasoning、Search action 与最终答案 | HF / PEFT |
 | 过程监督 | 诊断 query 意图和检索证据质量 | 冻结的查询级 Judge |
 | 偏好构造 | 比较真实原始轨迹与 counterfactual 轨迹 | SmartSearch 风格排序 |
-| DPO | 优化 canonical chosen/rejected continuation | 现代 LLaMA-Factory 兼容路径 |
-| GRPO | 在交互式 Search 环境中进行组相对策略优化 | 现代上游 veRL |
+| DPO | 优化 canonical chosen/rejected continuation | 项目原生 role-aware DPO 训练器 |
+| GRPO | 在交互式 Search 环境中进行组相对策略优化 | TRL objective + Champion 分段回放 |
 
 历史 correctness baseline 与正式训练后端接口分开保留。具体命令及其真实支持范围见[入口说明](docs/ENTRYPOINTS.md)。
 
@@ -85,29 +85,30 @@ POST / → agent.py → agent_loop.py::react_agent(question)
 ## 仓库结构
 
 ```text
-src/agentic_search_rl/
-  runtime/                  # Champion 兼容的公共运行时 API
-  data/                     # Canonical SFT、偏好数据和在线轨迹
-  rewards/                  # 过程评分接口
-  evaluation/               # 现有答案评估指标
-  training/
-    sft/                    # HF / PEFT 模型与数据构造
-    dpo/                    # LLaMA-Factory canonical bridge
-      baselines/            # 历史 TRL correctness baseline
-    grpo/                   # 在线轨迹与 reward 集成边界
-      baselines/            # TRL forward oracle
-configs/                    # 模型身份、实验配置与可移植示例
+src/
+  agentic_search_rl/        # 公共 facade：runtime/data/rewards/evaluation/training 命名空间
+  canonical_sft/            # SFT 与 DPO 的 canonical 数据、loss 与正式训练入口
+  champion_runtime/         # Champion Search 环境与 HF/PEFT policy backend
+  online_grpo/              # 在线轨迹 capture、过程奖励与 TRL GRPO 参数更新
+  rl_agent/                 # 答案评估与 policy/protocol 适配
+configs/
+  examples/                 # 可移植的 SFT/DPO/GRPO 示例配置
+  process_judge/v3_frozen/  # 冻结的 V3 Process Judge prompt/schema/manifest
 scripts/
+  agent/                    # Teacher rollout 生成
+  config/                   # 模型身份冻结工具
   data/                     # Teacher 生成、raw990 冻结与 canonical 重建入口
-  process/                  # Process Judge V3 审计与评分入口
-  sft/                      # SFT 数据构造与训练代码
-  dpo/                      # DPO 数据构造与训练代码
-  grpo/                     # GRPO 训练代码
+  prm/                      # Process Judge V3 评分入口
+  sft/                      # SFT 数据构造与训练入口
+  dpo/                      # DPO 训练入口
+  grpo/                     # GRPO preflight/train 入口
+  grpo_runtime/             # GRPO 共享运行引擎
+  evaluation/               # 答案指标与四阶段统一评测
 tests/                      # 离线回归测试
 docs/                       # 主线架构与入口文档
 ```
 
-旧实现 package 继续保留在薄兼容层之后，从而兼容现有 import，并保持冻结源码的 identity 不变。
+`agentic_search_rl` 是面向公开命令的薄命名空间；具体实现以 `canonical_sft`、`champion_runtime`、`online_grpo`、`rl_agent` 为准，保持模块 identity 与冻结源码不变。
 
 ## 快速开始
 
@@ -125,21 +126,25 @@ PYTHONPATH=src python -m agentic_search_rl score-answer --prediction "Paris" --g
 export ASRL_MODEL_PATH=/path/to/local/base
 export ASRL_TOKENIZER_PATH=/path/to/exact/tokenizer
 export ASRL_SFT_DATASET=/path/to/canonical_sft.jsonl
-PYTHONPATH=src python -m agentic_search_rl sft --config configs/examples/sft.local.json
+PYTHONPATH=src python -m agentic_search_rl sft-train --config configs/examples/sft.local.json
 ```
 
-该命令只构造 dataset、model 和 optimizer state，不进行训练。示例中的资源参数仅用于展示配置方法，不代表任何硬件承载保证。运行模型前请先阅读[配置说明](configs/README.md)与[主线入口](docs/ENTRYPOINTS.md)。
+只构造 dataset、model 和 optimizer 而不更新参数的命令是 `sft-preflight`。正式 DPO 使用 `scripts/dpo/train.sh`，正式 GRPO 使用 `scripts/grpo/train.sh`。示例中的资源参数仅用于展示配置方法，不代表任何硬件承载保证。运行模型前请先阅读[配置说明](configs/README.md)与[主线入口](docs/ENTRYPOINTS.md)。
 
-当前公开数据：990 条主池位于 data/splits/sft_pool_990_seed20260904.jsonl，canonical SFT 候选位于 data/canonical/sft_candidates_632.jsonl（实际 632 条；未发现独立 660 条文件）。
+仓库不提交私有或受许可证约束的大规模轨迹与 split；`data/` 默认被 `.gitignore` 排除。公开仓库提供生成与冻结脚本，使用者须自行提供合法原始数据，并把生成文件 hash 写入 run manifest。不得把本地存在但 Git 未跟踪的数据描述为公开数据。
 
 ## 可复现性
 
-每次实验应记录 base/tokenizer revision、adapter identity、dataset hash、split 排除规则、seed、运行时依赖、generation 参数和 checkpoint lineage。Canonical 轨迹不允许静默截断；最终评估数据必须与 post-training 数据及 Judge calibration 数据严格隔离。
+每次运行应记录 base/tokenizer revision、adapter identity、dataset hash、split 排除规则、seed、运行时依赖、generation 参数和 checkpoint lineage。Canonical 轨迹不允许静默截断；最终评估数据必须与 post-training 数据及 Judge calibration 数据严格隔离。
 
 模型、索引、凭据、checkpoint 和大规模轨迹属于本地资产，不提交为源码依赖。需要提交的是可审计的配置、数据清单、统计和可重现脚本，详见[架构说明](docs/ARCHITECTURE.md)。
+
+## 运行与产物
+
+仓库提供 SFT、DPO、在线 GRPO、checkpoint/reload、更新后 rollout 与四阶段统一评测的完整代码入口。各入口在运行时生成训练日志、参数更新审计、checkpoint/reload 清单与四阶段统一评测报告，并写入配置指定的输出目录。
 
 ## 致谢与许可证
 
 本项目借鉴 [SmartSearch](https://github.com/RUC-NLPIR/SmartSearch) 的部分PRM思路，并适配 [Research-Agent---1st-place-in-Alibaba-Cloud-Data-AI-Competition](https://github.com/yiming-qing/Research-Agent---1st-place-in-Alibaba-Cloud-Data-AI-Competition) 的交互式 Agent 语义，结合其guard机制改进了PRM机制。项目自身的 multi-query canonicalization、role-aware 训练桥接和 counterfactual 分支执行，与上游工作在架构文档中明确区分。
 
-HF/PEFT、LLaMA-Factory、veRL 与 FlashRAG 为项目提供了训练和检索生态支持。第三方 attribution 与保留的许可证文本见[第三方声明](THIRD_PARTY_NOTICES.md)。仓库整体许可证需要由项目所有者在正式发布前确定；上游许可证义务始终有效。
+HF/PEFT、TRL 与 FlashRAG 为项目提供了训练和检索生态支持。第三方 attribution 与保留的许可证文本见[第三方声明](THIRD_PARTY_NOTICES.md)。仓库整体许可证需要由项目所有者在正式发布前确定；上游许可证义务始终有效。

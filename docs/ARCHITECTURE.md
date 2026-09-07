@@ -10,7 +10,7 @@ Teacher 实际执行事件
   → Champion runtime rollout
   → Process Judge V3 / PRM
   → canonical DPO
-  → GRPO/veRL 在线优化
+  → TRL GRPO 在线优化
   → 统一评测
 ```
 
@@ -21,8 +21,8 @@ Teacher 实际执行事件
 | Agent runtime | `src/champion_runtime/` | 解析 Search action、调用 retriever、追加 observation、控制轮次 |
 | 数据构建 | `scripts/agent/`、`scripts/data/` | 生成 Teacher 轨迹、冻结统计、canonical 重建 |
 | SFT | `src/canonical_sft/` | tokenizer、角色掩码、稀疏 CE、LoRA/Full FT |
-| DPO | `src/canonical_sft/dpo.py`、`trl_dpo.py`、`llamafactory_dpo.py` | chosen/rejected 表示和训练桥接 |
-| GRPO | `src/online_grpo/`、`scripts/grpo_verl/` | 在线轨迹、过程奖励和 veRL 接口 |
+| DPO | `src/canonical_sft/dpo.py`、`dpo_runner.py` | chosen/rejected 表示、原生 objective 与正式训练入口 |
+| GRPO | `src/online_grpo/`、`scripts/grpo_runtime/` | 在线轨迹、过程奖励、TRL objective 与参数更新 |
 | PRM | `scripts/prm/`、`src/agentic_search_rl/rewards/` | 冻结 V3 的 Intent/Retrieval query 评分 |
 | 评测 | `src/agentic_search_rl/evaluation/`、`src/rl_agent/evaluator.py` | EM/F1、协议和轨迹指标 |
 

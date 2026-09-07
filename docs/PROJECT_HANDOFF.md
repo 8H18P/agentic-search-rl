@@ -9,7 +9,7 @@ Canonical 数据
 → Champion Search Agent
 → SFT
 → DPO
-→ GRPO / veRL（实现入口已预留）
+→ TRL GRPO
 → 统一评测
 ```
 
@@ -17,20 +17,15 @@ Canonical 数据
 
 ## 2. 当前代码状态
 
-当前 Git 主分支已推送至 GitHub：
+远端与提交身份属于可变状态，交接文档不冻结可能过期的 HEAD。每次交接应执行：
 
-```text
-repository: https://github.com/8H18P/agentic-search-rl
-branch: main
-HEAD: 25bfbb1
+```bash
+git remote -v
+git status --short --branch
+git rev-parse HEAD
 ```
 
-工作区应保持干净。README 和主线文档使用中文，Git 提交身份为：
-
-```text
-user.name  = Zachary Chan
-user.email = chenweijie2025@163.com
-```
+不得根据本文声称工作区干净、已经推送或某个 commit 就是最新状态。README 和主线文档主要内容使用中文。
 
 ## 3. Agent 与检索运行时
 
@@ -64,20 +59,9 @@ POST /
 
 ## 4. 当前数据资产
 
-核心数据必须保留，不得删除：
+数据作为外部资产通过配置绑定，约定路径示例如下：
 
-```text
-data/splits/sft_pool_990_seed20260904.jsonl
-```
-
-- 990 条主数据；
-- canonical SFT candidate：
-
-```text
-data/canonical/sft_candidates_632.jsonl
-```
-
-- 当前核验为 632 条，不将其伪造为 660 条；
+数据路径、数量和 hash 以每次运行配置与 manifest 为准；
 - 数据生成、canonical 重建和筛选脚本位于 `scripts/data/`；
 - validation400 不属于当前主线训练数据。
 
@@ -100,7 +84,7 @@ scripts/
 ├── data/
 ├── sft/
 ├── dpo/
-├── grpo_verl/
+├── grpo_runtime/
 ├── prm/
 └── evaluation/
 ```
@@ -113,9 +97,9 @@ scripts/data/freeze_raw990.sh
 scripts/data/build_canonical_candidates.sh
 scripts/sft/preflight.sh
 scripts/sft/train.sh
-scripts/dpo/preflight.sh
-scripts/grpo_verl/preflight.sh
-scripts/prm/audit_v3.sh
+scripts/dpo/train.sh
+scripts/grpo/preflight.sh
+scripts/grpo/train.sh
 scripts/prm/score_v3.sh
 scripts/evaluation/evaluate.sh
 ```
@@ -124,7 +108,7 @@ scripts/evaluation/evaluate.sh
 
 - SFT：Qwen3.5-4B + LoRA，使用 canonical 数据和 role-aware supervision；
 - DPO：使用真实 original/counterfactual preference candidate，保持 policy/reference 语义一致；
-- GRPO / veRL：保留主线目录和 preflight 入口，正式训练需在满足算力与运行时条件后执行；
+- GRPO：TRL objective、Champion rollout、过程奖励、参数更新、checkpoint/reload 与更新后 rollout；
 - PRM：Process Judge V3 用于 query-level Intent / Retrieval 过程评分；
 - Evaluation：统一使用 Champion runtime、现有 parser、retriever 和 outcome evaluator。
 
@@ -133,7 +117,7 @@ scripts/evaluation/evaluate.sh
 模型相关配置位于：
 
 ```text
-configs/model/
+configs/examples/ 与运行时生成的模型 identity manifest
 ```
 
 默认模型身份：
@@ -153,7 +137,6 @@ docs/DATA_PIPELINE.md
 docs/TRAINING.md
 docs/EVALUATION.md
 docs/PRM.md
-docs/REPOSITORY_CLEANUP_REPORT.md
 ```
 
 README 是项目总入口；上述文档分别说明架构、脚本入口、数据管线、训练、评测和过程评分。
@@ -184,4 +167,4 @@ pip install -r requirements.txt
 2. 使用 `scripts/` 下对应阶段的入口；
 3. 保持 canonical 数据、Champion runtime 和统一评测契约；
 4. 训练产物放在外部 artifact 路径，不污染公开代码仓库；
-5. 新增实验文档只保留可复现、可审计且属于主线的内容。
+5. 新增文档只保留可复现、可审计且属于主线的内容。

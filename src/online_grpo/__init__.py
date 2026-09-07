@@ -1,1 +1,1 @@
-"""Online Champion rollout provenance and TRL preflight adapters."""
+"""Online Champion rollout provenance, TRL preflight, and explicit training update."""

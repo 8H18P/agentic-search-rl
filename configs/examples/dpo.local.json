@@ -1,0 +1,22 @@
+{
+  "model_path": "${ASRL_MODEL_PATH}",
+  "tokenizer_path": "${ASRL_TOKENIZER_PATH}",
+  "sft_adapter_path": "${ASRL_SFT_CHECKPOINT}",
+  "train_dataset_path": "${ASRL_DPO_DATASET}",
+  "eval_dataset_path": null,
+  "output_dir": "${ASRL_DPO_OUTPUT}",
+  "model_id": "local-model",
+  "model_revision": "record-the-exact-revision",
+  "max_seq_length": 8192,
+  "per_device_train_batch_size": 1,
+  "gradient_accumulation_steps": 4,
+  "learning_rate": 5e-7,
+  "num_train_epochs": 1,
+  "max_steps": -1,
+  "beta": 0.1,
+  "gradient_checkpointing": true,
+  "dtype": "bfloat16",
+  "attention_backend": "sdpa",
+  "device": "cuda",
+  "seed": 42
+}

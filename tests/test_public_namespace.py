@@ -14,7 +14,6 @@ import torch
     ("data.sft", "canonical_sft.loader"),
     ("data.preference", "canonical_sft.dpo"),
     ("data.trajectory", "online_grpo.capture"),
-    ("training.dpo.bridge", "canonical_sft.llamafactory_dpo"),
     ("evaluation.metrics", "rl_agent.evaluator"),
 ])
 def test_same_module_identity(public, legacy):

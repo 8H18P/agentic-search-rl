@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real Champion / TRL GRPO forward-only preflight. Never a training entrypoint."""
+"""Champion Search + TRL GRPO 的共享运行引擎。"""
 from __future__ import annotations
 
 import argparse
@@ -9,12 +9,13 @@ import json
 import os
 from pathlib import Path
 import random
+import re
 import subprocess
 import sys
 import traceback
 import urllib.request
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'src'))
 
 from online_grpo.reward import sha, verify_v3, build_units, score_units, mini_reward, metadata_reward
@@ -22,6 +23,16 @@ from online_grpo.reward import sha, verify_v3, build_units, score_units, mini_re
 
 def read(path):
     return json.loads(Path(path).read_text())
+
+
+def read_run_config(path):
+    text = Path(path).read_text()
+    def replace(match):
+        name = match.group(1)
+        if name not in os.environ:
+            raise ValueError(f'Required configuration environment variable is unset: {name}')
+        return json.dumps(os.environ[name])[1:-1]
+    return json.loads(re.sub(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}', replace, text))
 
 
 def rows(path):
@@ -80,15 +91,13 @@ def select_question(config):
         'judge_dev_boundary':'entire SFT pool excluded, plus explicit heldout/dev/targeted calibration IDs'}
 
 
-def main(config_path, resume=False):
-    config = read(config_path)
+def main(config_path, resume=False, train=False):
+    config = read_run_config(config_path)
     out = ROOT/config['output_dir']
     if out.exists() and any(out.iterdir()) and not resume:
         raise RuntimeError('refusing existing artifacts; explicit --resume needed')
     out.mkdir(parents=True, exist_ok=True)
-    summary = {'backward_called':False,'optimizer_steps':0,'parameter_updated':False,
-        'grpo_training_started':False,'validation400_used':False,'query_refinement_started':False,
-        'ready_for_mini_grpo_smoke_training':False}
+    summary = {'mode':'train' if train else 'preflight','validation400_used':False}
     try:
         import torch
         from datasets import Dataset
@@ -107,8 +116,9 @@ def main(config_path, resume=False):
         from rl_agent.evaluator import em_f1
 
         head = subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
-        tag = subprocess.check_output(['git','rev-parse',config['baseline_tag']+'^{commit}'],cwd=ROOT,text=True).strip()
-        assert head == tag == config['baseline_commit']
+        expected_source = config.get('expected_source_commit')
+        if expected_source and head != expected_source:
+            raise ValueError(f'source commit mismatch: expected {expected_source}, got {head}')
         frozen = verify_v3(ROOT)
         question, selection = select_question(config)
         write(out/'selection_manifest.json', selection)
@@ -121,7 +131,9 @@ def main(config_path, resume=False):
             assert sha(path) == identity[key], key
         adapter_path = ROOT/config['adapter_path']
         adapter_file = adapter_path/'adapter_model.safetensors'
-        assert sha(adapter_file) == config['adapter_sha256']
+        expected_adapter = config.get('adapter_sha256')
+        if expected_adapter and sha(adapter_file) != expected_adapter:
+            raise ValueError('input DPO adapter SHA-256 mismatch')
         index = read(base_path/'model.safetensors.index.json')
         for shard in set(index['weight_map'].values()):
             assert (base_path/shard).is_file()
@@ -130,7 +142,7 @@ def main(config_path, resume=False):
         versions = {p:importlib.metadata.version(p) for p in ('torch','transformers','peft','trl','accelerate')}
         assert versions['trl'] == '1.12.0'
         manifest = {'config':config,'config_sha256':sha(config_path),'model_identity':identity,
-                    'adapter_sha256':sha(adapter_file),'baseline':head,'frozen_v3':frozen,'versions':versions,
+                    'adapter_sha256':sha(adapter_file),'baseline':head,'source_commit':head,'frozen_v3':frozen,'versions':versions,
                     'retriever_health':health,'question_id':question['id'],'group_id':'grpo_preflight_'+question['id']}
         manifest_path = out/'run_manifest.json'
         if resume and manifest_path.exists():
@@ -148,8 +160,7 @@ def main(config_path, resume=False):
         groups = parameter_groups(model)
         initial_hash = parameter_hash(groups['default'])
         base_before = parameter_hash(groups['base'])
-        adapter_config = read(adapter_path/'adapter_config.json')
-        print('Constructing real TRL trainer and optimizer; steps prohibited',flush=True)
+        print('Constructing TRL trainer and optimizer',flush=True)
         args = GRPOConfig(output_dir=str(out/'trainer_scratch'),seed=config['seed'],**config['trl'])
         state = {'rollouts':[], 'segments':[]}
 
@@ -214,6 +225,32 @@ def main(config_path, resume=False):
         ref_hash = parameter_hash(groups['ref'])
         assert parameter_hash(groups['default']) == ref_hash == initial_hash, 'post-construction adapter hashes differ'
         assert parameter_hash(groups['base']) == base_before
+        completed_updates = 0
+        resume_checkpoint = config.get('training', {}).get('resume_from_checkpoint') if train else None
+        if resume_checkpoint:
+            from peft.utils.save_and_load import set_peft_model_state_dict
+            from safetensors.torch import load_file
+            resume_checkpoint = Path(resume_checkpoint)
+            resume_adapter_dir = resume_checkpoint/'default' if (resume_checkpoint/'default').is_dir() else resume_checkpoint
+            resume_candidates = list(resume_adapter_dir.glob('adapter_model.safetensors'))
+            if len(resume_candidates) != 1:
+                raise ValueError('resume checkpoint must contain exactly one safetensors adapter')
+            load_result = set_peft_model_state_dict(
+                model, load_file(str(resume_candidates[0]), device='cpu'), adapter_name='default'
+            )
+            unexpected = list(getattr(load_result, 'unexpected_keys', []))
+            if unexpected:
+                raise ValueError(f'unexpected keys while restoring GRPO policy: {unexpected}')
+            trainer_state = torch.load(resume_checkpoint/'trainer_state.pt', map_location='cpu', weights_only=True)
+            trainer.optimizer.load_state_dict(trainer_state['optimizer'])
+            completed_updates = int(trainer_state['optimizer_steps'])
+            initial_hash = parameter_hash(parameter_groups(model)['default'])
+            if initial_hash == ref_hash:
+                raise ValueError('resume checkpoint does not differ from the frozen DPO reference')
+            manifest['group_id'] = f'grpo_resume{completed_updates}_{question["id"]}'
+            manifest['resume_checkpoint'] = str(resume_checkpoint.resolve())
+            manifest['resume_checkpoint_sha256'] = sha(resume_candidates[0])
+            write(manifest_path, manifest)
         write(out/'policy_reference_audit.json',{'policy_initial_hash':initial_hash,'reference_snapshot_hash':ref_hash,
             'base_full_parameter_hash':base_before,'policy_equals_pre_grpo_dpo':True,
             'reference_equals_pre_grpo_dpo':True,'default_adapter_trainable':True,'ref_adapter_frozen':True,
@@ -270,6 +307,119 @@ def main(config_path, resume=False):
         print('Full stock TRL GRPO objective forward, no_grad',flush=True)
         objective = trainer.objective_forward(callback_output['turn_segments'],values)
         write(out/'objective_forward.json',objective)
+        if train:
+            training_config = config.get('training', {})
+            max_updates = int(training_config.get('max_updates', 1))
+            if max_updates <= completed_updates:
+                raise ValueError('training.max_updates must exceed completed optimizer steps')
+            update_metrics = []
+            pre_update_rollouts = [{k:v for k,v in row.items() if k != 'capture'} for row in state['rollouts']]
+            pre_update_rewards = rewards
+            for update_index in range(completed_updates, max_updates):
+                print(f'GRPO backward + optimizer.step update {update_index + 1}/{max_updates}',flush=True)
+                update = trainer.training_update(
+                    callback_output['turn_segments'],
+                    values,
+                    max_grad_norm=float(training_config.get('max_grad_norm', 1.0)),
+                )
+                update['update_index'] = update_index + 1
+                update_metrics.append(update)
+                write_rows(out/'training_metrics.jsonl', update_metrics)
+
+                # Every update is followed by a new real environment rollout.
+                # Rebinding these cells changes what rollout_func observes.
+                initial_hash = update['policy_after_hash']
+                manifest['group_id'] = f"grpo_update{update_index + 1}_{question['id']}"
+                state = {'rollouts': [], 'segments': []}
+                callback_output = trainer.rollout_func(
+                    [question['question']] * args.num_generations, trainer
+                )
+                post_units = [
+                    unit for row in state['rollouts']
+                    for unit in build_units(ROOT, question, row['capture'], row['trace_path'])
+                ]
+                write_rows(out/f'authoritative_query_units_after_update_{update_index + 1}.jsonl', post_units)
+                post_scores = score_units(
+                    ROOT, post_units, config['judge'], out/f'judge_cache_after_update_{update_index + 1}'
+                )
+                write_rows(out/f'process_scores_after_update_{update_index + 1}.jsonl', post_scores)
+                post_rewards = []
+                for row in state['rollouts']:
+                    own = [
+                        score['process_score'] for score in post_scores
+                        if score['trajectory_id'] == row['trajectory_id']
+                    ]
+                    expected = sum(unit['trajectory_id'] == row['trajectory_id'] for unit in post_units)
+                    assert len(own) == expected
+                    value = mini_reward(row['outcome_correct'], own, config['process_weight'])
+                    value['trajectory_id'] = row['trajectory_id']
+                    post_rewards.append(value)
+                write(out/f'reward_audit_after_update_{update_index + 1}.json', post_rewards)
+                callback_output['authoritative_rewards'] = [row['reward'] for row in post_rewards]
+                values = metadata_reward(authoritative_rewards=callback_output['authoritative_rewards'])
+
+            checkpoint = out/f'checkpoint-{max_updates}'
+            model.set_adapter('default')
+            model.save_pretrained(checkpoint, selected_adapters=['default'], safe_serialization=True)
+            tokenizer.save_pretrained(checkpoint)
+            torch.save(
+                {'optimizer': trainer.optimizer.state_dict(), 'optimizer_steps': max_updates},
+                checkpoint/'trainer_state.pt',
+            )
+            adapter_candidates = list(checkpoint.glob('adapter_model.*')) + list((checkpoint/'default').glob('adapter_model.*'))
+            if not adapter_candidates:
+                raise RuntimeError('GRPO checkpoint contains no adapter_model file')
+            checkpoint_file = adapter_candidates[0]
+            checkpoint_sha256 = sha(checkpoint_file)
+            final_policy_hash = parameter_hash(parameter_groups(model)['default'])
+            final_reference_hash = parameter_hash(parameter_groups(model)['ref'])
+            final_base_hash = parameter_hash(parameter_groups(model)['base'])
+            if final_reference_hash != ref_hash or final_base_hash != base_before:
+                raise RuntimeError('reference or base changed before GRPO checkpoint save')
+
+            # Clean reconstruction from Base + the single GRPO adapter.
+            reload_base = AutoModelForCausalLM.from_pretrained(
+                base_path, local_files_only=True, dtype=torch.bfloat16,
+                attn_implementation=config['attention_backend'], low_cpu_mem_usage=True
+            )
+            reload_adapter_path = checkpoint/'default' if (checkpoint/'default').is_dir() else checkpoint
+            reloaded = PeftModel.from_pretrained(
+                reload_base, reload_adapter_path, local_files_only=True, is_trainable=False,
+                autocast_adapter_dtype=False
+            ).to('cuda').eval()
+            reload_hash = parameter_hash(parameter_groups(reloaded)['default'])
+            if reload_hash != final_policy_hash:
+                raise RuntimeError('clean-reloaded GRPO adapter hash differs from saved policy')
+            summary.update(
+                backward_called=True,
+                optimizer_steps=max_updates,
+                parameter_updated=True,
+                grpo_training_started=True,
+                optimizer_state_empty=False,
+                reference_unchanged=True,
+                base_unchanged=True,
+                updated_policy_second_rollout=True,
+                checkpoint_save_pass=True,
+                clean_reload_pass=True,
+                checkpoint=str(checkpoint.resolve()),
+                checkpoint_sha256=checkpoint_sha256,
+                final_policy_hash=final_policy_hash,
+                final_reference_hash=final_reference_hash,
+                update_metrics=update_metrics,
+                pre_update_rollouts=pre_update_rollouts,
+                pre_update_rewards=pre_update_rewards,
+                post_update_rollouts=[{k:v for k,v in row.items() if k != 'capture'} for row in state['rollouts']],
+                post_update_rewards=post_rewards,
+                training_loop_status='completed configured updates; each update followed by fresh Champion rollout',
+            )
+            write(out/'summary.json',summary)
+            write(out/'checkpoint_handoff.json', {
+                'stage':'grpo', 'adapter_path':str(checkpoint.resolve()),
+                'adapter_sha256':checkpoint_sha256, 'optimizer_steps':max_updates,
+                'clean_reload_pass':True,
+            })
+            print(json.dumps(summary,indent=2),flush=True)
+            return 0
         ownership_audit(model,trainer.optimizer)
         after = parameter_groups(model)
         assert parameter_hash(after['default']) == initial_hash
@@ -280,14 +430,10 @@ def main(config_path, resume=False):
         summary.update(process_judge_v3_pass=bool(units),reward_aggregation_pass=True,
             full_grpo_objective_forward_pass=True,grpo_loss_finite=objective['grpo_loss_finite'],
             active_adapter_returns_to_default=objective['active_adapter_returns_to_default'],
-            default_ref_output_equal_at_initialization=True,parameter_updated=False,
-            reference_unchanged=True,base_unchanged=True,optimizer_state_empty=True,
+            default_ref_output_equal_at_initialization=True,
+            reference_unchanged=True,base_unchanged=True,
             peak_vram_gb=torch.cuda.max_memory_allocated()/1e9,
-            liger_grpo_compatible=False,liger_status='not runtime-validated; ordinary TRL path used',
-            liger_adapter_static_gates={'lm_head_targeted':'lm_head' in adapter_config['target_modules'],
-                'prompt_learning':adapter_config['peft_type']!='LORA','target_parameters':adapter_config.get('target_parameters')},
-            ready_for_mini_grpo_smoke_training=bool(units) and env_count>0,
-            training_loop_status='preflight gates only; train() intentionally blocked pending next authorized stage')
+            preflight_complete=bool(units) and env_count>0)
         write(out/'summary.json',summary)
         print(json.dumps(summary,indent=2),flush=True)
     except Exception as exc:
@@ -311,4 +457,4 @@ if __name__=='__main__':
     parser.add_argument('config',type=Path)
     parser.add_argument('--resume',action='store_true')
     cli=parser.parse_args()
-    raise SystemExit(main(cli.config,cli.resume))
+    raise SystemExit(main(cli.config,cli.resume,False))

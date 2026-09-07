@@ -24,9 +24,12 @@ def verify_v3(root):
     manifest = json.loads((root/'configs/process_judge/v3_frozen/V3_FREEZE_MANIFEST.json').read_text())
     checked = {}
     for key, path in [
-        ('query_reconstruction_builder', 'scripts/prm/build_query_level_judge_pilot.py'),
-        ('v3_calibration_builder', 'scripts/prm/build_query_level_judge_v3_calibration.py'),
-        ('v3_channel_runner_and_parser', 'scripts/prm/run_query_level_judge_v3_channel.py')]:
+        ('judge_contract', 'src/agentic_search_rl/rewards/judge_v3.py'),
+        ('v3_channel_runner_and_parser', 'scripts/prm/run_query_level_judge_v3_channel.py'),
+        ('intent_prompt', 'configs/process_judge/v3_frozen/intent_prompt.txt'),
+        ('retrieval_prompt', 'configs/process_judge/v3_frozen/retrieval_prompt.txt'),
+        ('judge_config', 'configs/process_judge/v3_frozen/judge_config.json'),
+        ('output_schema', 'configs/process_judge/v3_frozen/output_schema.json')]:
         actual = sha(root/path)
         if actual != manifest['sha256'][key]:
             raise ValueError(f'frozen V3 hash mismatch: {path}')
@@ -35,8 +38,7 @@ def verify_v3(root):
 
 
 def build_units(root, question, capture, trace_path):
-    reconstruct = load_module(root/'scripts/prm/build_query_level_judge_pilot.py', 'grpo_v3_reconstruct')
-    prompts = load_module(root/'scripts/prm/build_query_level_judge_v3_calibration.py', 'grpo_v3_prompts')
+    from agentic_search_rl.rewards import judge_v3
     history, units = [], []
     events = capture.events
     for event_index, event in enumerate(events):
@@ -49,7 +51,7 @@ def build_units(root, question, capture, trace_path):
         if finish is None or appended is None or not finish['payload'].get('success'):
             raise ValueError('incomplete authoritative Search event chain')
         observation = appended['payload']['tool_response']
-        sections = reconstruct.parse_sections(observation, queries)
+        sections = judge_v3.parse_sections(observation, queries)
         response = next(e['payload']['content'] for e in reversed(events[:event_index]) if e['event_type']=='round_response')
         # Only reasoning is read from policy text; action/query come exclusively from search_start.
         reasoning = response.split('<think>',1)[-1].split('</think>',1)[0] if '<think>' in response else ''
@@ -63,8 +65,8 @@ def build_units(root, question, capture, trace_path):
                 'source_refs': {'trace_path': str(trace_path), 'search_start_event_index': event_index,
                                 'observation_source': 'tool_response_appended', 'action_source': 'search_start'},
                 'current_query_result_sha256': section['result_sha256']}
-            unit['intent_prompt'] = prompts.intent_prompt(unit)
-            unit['retrieval_prompt'] = prompts.retrieval_prompt(unit['current_executed_query'],unit['current_query_result'])
+            unit['intent_prompt'] = judge_v3.intent_prompt(unit)
+            unit['retrieval_prompt'] = judge_v3.retrieval_prompt(unit['current_executed_query'],unit['current_query_result'])
             units.append(unit)
         history.append({'action_idx':action_idx, 'reasoning':reasoning,
             'executed_action':{'name':'search','arguments':{'query':list(queries)}},

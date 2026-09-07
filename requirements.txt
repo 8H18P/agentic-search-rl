@@ -1,8 +1,8 @@
-torch>=2.4
-transformers>=5.0
-peft>=0.14
-accelerate>=1.0
-datasets>=3.0
+torch==2.11.0
+transformers==5.8.0
+peft==0.18.1
+accelerate==1.11.0
+datasets==4.0.0
 safetensors>=0.4
 numpy>=1.26
 requests>=2.31
@@ -14,8 +14,7 @@ wandb>=0.17
 pytest>=8.0
 
 # 可选组件（按阶段单独安装）
-# trl>=0.20          # DPO/GRPO 训练
-# liger-kernel>=0.5  # fused sparse CE
-# faiss-cpu>=1.8     # CPU retriever 服务
+# GRPO 专用环境固定使用 trl==1.12.0；见 requirements-grpo-lock.txt。
+# liger-kernel       # 仅在明确启用 fused sparse CE 时安装并记录版本
+# faiss-cpu          # retriever 服务环境单独冻结
 # flash-attn>=2.7    # 兼容时启用 FlashAttention2
-# verl               # 在线 GRPO；按上游文档安装

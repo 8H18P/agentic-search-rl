@@ -24,23 +24,23 @@ bash scripts/sft/train.sh <sft-config.json>
 ## DPO
 
 ```bash
-bash scripts/dpo/preflight.sh <bridge-args>
+bash scripts/dpo/train.sh configs/examples/dpo.local.json
 ```
 
-该入口验证 canonical bridge；实际训练由 `src/canonical_sft/trl_dpo.py` 或 LLaMA-Factory 环境显式启动。
+该入口执行项目原生 DPO 更新、checkpoint、clean reload 与 GRPO handoff。
 
-## GRPO / veRL
+## GRPO
 
 ```bash
-bash scripts/grpo_verl/preflight.sh <preflight-args>
+bash scripts/grpo/preflight.sh <grpo-config.json>
+bash scripts/grpo/train.sh <grpo-config.json>
 ```
 
-这是 veRL/在线轨迹的诊断入口，不会在导入或 `--help` 时启动训练。
+第一个命令执行只读 objective 和数据契约检查；第二个命令执行 TRL GRPO objective 的 backward/step、保存与更新后新 rollout。
 
 ## PRM 与评测
 
 ```bash
-bash scripts/prm/audit_v3.sh --repo . --artifact-dir <dir> --output <report>
 bash scripts/prm/score_v3.sh <judge-args>
 bash scripts/evaluation/evaluate.sh --prediction "Paris" --gold "Paris"
 ```

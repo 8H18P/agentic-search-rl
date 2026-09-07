@@ -9,3 +9,17 @@ bash scripts/evaluation/evaluate.sh --prediction "Paris" --gold "Paris"
 ```
 
 该入口只执行无模型的答案指标示例；大规模 rollout 与结果写盘由调用方提供 manifest 和输出目录。
+
+四阶段 rollout 完成后，使用严格聚合入口生成统一 JSON 与中文 Markdown 报告：
+
+```bash
+bash scripts/evaluation/compare_stages.sh \
+  --stage Base=/path/to/base.jsonl \
+  --stage SFT=/path/to/sft.jsonl \
+  --stage DPO=/path/to/dpo.jsonl \
+  --stage GRPO=/path/to/grpo.jsonl \
+  --output-json /path/to/stage_comparison.json \
+  --output-markdown /path/to/STAGE_COMPARISON.md
+```
+
+逐题 JSONL 必须包含 `question_id`、EM/F1、task success、Search action/query 数、valid/repeated query 数、retrieval success 数、process scores、trajectory reward 和 termination reason。任何必需字段缺失或四阶段问题集合不一致都会直接失败，聚合器不会用默认值伪造结果。

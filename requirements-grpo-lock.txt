@@ -1,0 +1,10 @@
+# 正式 GRPO 入口的核心版本约束。
+# CUDA 构建（例如 torch 的 +cu130 wheel）必须由目标机器按官方索引解析，
+# 安装后版本会写入 run_manifest.json；不能把 macOS/CPU wheel 当作 GPU 锁文件。
+torch==2.11.0
+transformers==5.8.0
+peft==0.18.1
+accelerate==1.11.0
+datasets==4.0.0
+trl==1.12.0
+# 非核心服务依赖由对应服务环境管理；run manifest 记录实际版本。
