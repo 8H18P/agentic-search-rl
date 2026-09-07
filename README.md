@@ -2,7 +2,7 @@
 
 这是一个面向多轮信息检索的 Search Agent 后训练项目。项目借鉴并适配 **SmartSearch** 的查询级过程监督与偏好优化思路，在 **Champion 风格的交互式 Search 运行时**上组织 SFT → DPO → GRPO 流水线。
 
-项目关注的核心问题是：解决多轮 Search Agent 在长链路任务中最终奖励稀疏、错误搜索难以归因以及中间步骤信用分配困难的问题。当前实现使用冻结的查询级 LLM Judge（不是独立训练的本地 PRM checkpoint）评估每一步 Query 的搜索意图与检索结果有效性，并将其作为 process reward 用于偏好优化与强化学习。
+项目关注的核心问题是：解决多轮 Search Agent 在长链路任务中最终奖励稀疏、错误搜索难以归因以及中间步骤信用分配困难的问题。通过引入逐Query的 Process Reward Model （LLM-As-a-Judge + 规则判断）评估每一步 Query 的搜索意图与检索结果有效性，并将其作为 process reward 用于偏好优化与强化学习。
 
 ## 设计原则
 
@@ -35,7 +35,7 @@ Canonical 轨迹 ──→ HF / PEFT SFT
                          │
                   Base + DPO adapter
                          ▼
-            TRL GRPO 训练 ↔ Champion Search 环境
+             GRPO 训练 ↔ Champion Search 环境
                          │
                         GRPO
 ```
